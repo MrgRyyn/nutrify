@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nutrify</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .app-container {
+            max-width: 420px;
+            height: 90vh;
+            max-height: 850px;
+        }
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body class="bg-gray-200 flex items-center justify-center h-screen">
+
+    <div id="app-container" class="w-full h-full bg-white rounded-2xl shadow-2xl overflow-hidden relative">
+        <!-- Splash Screen -->
+        <div id="splash-screen" class="w-full h-full bg-green-500 flex flex-col items-center justify-center text-white transition-opacity duration-500">
+            <svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" fill="currentColor" class="bi bi-leaf-fill" viewBox="0 0 16 16">
+                <path d="M8 16a.5.5 0 0 0 .5-.5V3h3.5a.5.5 0 0 0 .5-.5A.5.5 0 0 0 12 2h-4a.5.5 0 0 0-.5.5v11.235l-3.354-3.353a.5.5 0 0 0-.708.707L8.793 15.25a.5.5 0 0 0 .707 0l4.293-4.293a.5.5 0 0 0-.707-.707L8.5 14.293V3a.5.5 0 0 0-.5-.5H4a.5.5 0 0 0-.5.5C3.5 3 3 3.5 3 4v8.5a.5.5 0 0 0 .5.5H8z"/>
+            </svg>
+            <h1 class="text-4xl font-bold mt-4">Nutrify</h1>
+            <p class="text-lg mt-2">Eat Smart, Live Well.</p>
+        </div>
+
+        <!-- Main Page -->
+        <div id="main-page" class="w-full h-full flex-col hidden">
+            <header class="p-4 bg-white shadow-md z-10">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-800">Nutrify</h1>
+                        <p class="text-sm text-gray-500">Find healthy eats in Jatinangor!</p>
+                    </div>
+                     <div class="w-10 h-10 bg-gray-200 rounded-full"></div>
+                </div>
+                <div class="relative mt-4">
+                    <input id="search-bar" type="text" placeholder="Cari nama resto atau jalan..." class="w-full pl-10 pr-4 py-2 border rounded-full bg-gray-100 focus:outline-none focus:ring-2 focus:ring-green-400">
+                    <svg class="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-hidden relative">
+                <div id="map" class="w-full h-full z-0"></div>
+                <div id="list-container" class="absolute bottom-0 left-0 right-0 h-2/5 bg-white rounded-t-2xl shadow-lg p-4 flex flex-col transition-transform duration-300 translate-y-0">
+                    <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-3 cursor-pointer" id="drag-handle"></div>
+                    <h2 class="text-lg font-semibold mb-2">Resto Terdekat</h2>
+                    <div id="resto-list" class="flex-1 overflow-y-auto custom-scrollbar space-y-3">
+                        <!-- Restaurant cards will be injected here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Restaurant Detail Page -->
+        <div id="resto-detail-page" class="w-full h-full bg-gray-50 flex-col hidden custom-scrollbar overflow-y-auto">
+             <div class="h-48 w-full bg-gray-300 relative">
+                <img id="resto-detail-image" src="" class="w-full h-full object-cover">
+                <button id="back-button" class="absolute top-4 left-4 bg-white/70 p-2 rounded-full shadow-md backdrop-blur-sm">
+                    <svg class="w-6 h-6 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+            </div>
+
+            <div class="p-4 bg-white -mt-8 rounded-t-2xl">
+                <h1 id="resto-detail-name" class="text-2xl font-bold text-gray-900">Nama Restoran</h1>
+                <p id="resto-detail-address" class="text-gray-600 mt-1">Alamat Restoran</p>
+                <div class="flex items-center mt-2 text-sm text-gray-700 space-x-4 flex-wrap">
+                    <div class="flex items-center">
+                        <svg class="w-4 h-4 text-yellow-500 mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                        <span id="resto-detail-rating" class="font-semibold">4.5</span>
+                    </div>
+                    <div class="flex items-center">
+                        <svg class="w-4 h-4 text-gray-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span id="resto-detail-hours">10:00 - 22:00</span>
+                    </div>
+                    <div class="flex items-center">
+                        <svg class="w-4 h-4 text-gray-500 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                        <span id="resto-detail-capacity">Kapasitas: ~30</span>
+                    </div>
+                    <div id="resto-detail-health" class="flex items-center mt-2 md:mt-0">
+                        <!-- Health Indicator will be here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="px-4 mt-4">
+                <div class="flex border-b">
+                    <button id="menu-tab" class="py-2 px-4 text-green-500 border-b-2 border-green-500 font-semibold">Menu</button>
+                    <button id="review-tab" class="py-2 px-4 text-gray-500 font-semibold">Ulasan</button>
+                </div>
+            </div>
+
+            <!-- Menu Content -->
+            <div id="menu-content" class="px-4 py-4 space-y-3">
+                <!-- Menu items will be injected here -->
+            </div>
+
+            <!-- Review Content -->
+            <div id="review-content" class="px-4 py-4 hidden">
+                 <div class="bg-white p-4 rounded-lg shadow mb-4">
+                    <h3 class="font-semibold mb-2">Kasih Ulasanmu!</h3>
+                    <div class="flex items-center mb-2" id="review-stars">
+                        <!-- Stars for review input -->
+                         <svg class="w-6 h-6 text-gray-300 cursor-pointer star" data-value="1" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                         <svg class="w-6 h-6 text-gray-300 cursor-pointer star" data-value="2" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                         <svg class="w-6 h-6 text-gray-300 cursor-pointer star" data-value="3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                         <svg class="w-6 h-6 text-gray-300 cursor-pointer star" data-value="4" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                         <svg class="w-6 h-6 text-gray-300 cursor-pointer star" data-value="5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+                    </div>
+                    <textarea id="review-text" class="w-full border rounded-lg p-2 mt-2 h-20" placeholder="Ceritakan pengalamanmu..."></textarea>
+                    <button id="submit-review" class="w-full bg-green-500 text-white py-2 rounded-lg mt-2 font-semibold hover:bg-green-600 transition-colors">Kirim Ulasan</button>
+                </div>
+                <div id="review-list" class="space-y-4">
+                    <!-- Reviews will be injected here -->
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+<script>
+    // --- MOCK DATA ---
+    const mockData = [
+        {
+            id: 1,
+            name: "Warung Nasi Ibu Imas",
+            address: "Jl. Raya Jatinangor No. 123",
+            street: "Jl. Raya Jatinangor",
+            lat: -6.9329,
+            lng: 107.769,
+            capacity: 25,
+            hours: "08:00 - 20:00",
+            image: "https://placehold.co/600x400/f97316/white?text=Ibu+Imas",
+            rating: 4.7,
+            tags: ["Murah", "Kenyang", "Sunda"],
+            health: { score: 2, label: "Seimbang" },
+            menu: [
+                { name: "Paket Nasi Ayam Goreng", price: 18000 },
+                { name: "Paket Nasi Ikan Bakar", price: 20000 },
+                { name: "Sayur Asem", price: 5000 },
+                { name: "Es Teh Manis", price: 4000 },
+            ],
+            reviews: [
+                { user: "Budi S.", rating: 5, comment: "Ayam gorengnya juara! Sambelnya mantap, bikin nagih." },
+                { user: "Citra L.", rating: 4, comment: "Tempatnya sederhana tapi bersih. Harga mahasiswa banget." },
+            ]
+        },
+        {
+            id: 2,
+            name: "Mie Ayam Baso Mas Yanto",
+            address: "Jl. Kolonel Ahmad Syam No. 15",
+            street: "Jl. Kolonel Ahmad Syam",
+            lat: -6.935,
+            lng: 107.771,
+            capacity: 20,
+            hours: "10:00 - 21:00",
+            image: "https://placehold.co/600x400/3b82f6/white?text=Mas+Yanto",
+            rating: 4.5,
+            tags: ["Mie Ayam", "Murah", "Legendaris"],
+            health: { score: 1, label: "Nikmat" },
+            menu: [
+                { name: "Mie Ayam Original", price: 12000 },
+                { name: "Mie Ayam Baso", price: 15000 },
+                { name: "Mie Yamin Manis", price: 13000 },
+                { name: "Es Jeruk", price: 5000 },
+            ],
+            reviews: [
+                { user: "Andi P.", rating: 5, comment: "Mie ayam terenak di Jatinangor. Basonya juga kerasa dagingnya." },
+            ]
+        },
+        {
+            id: 3,
+            name: "Kopi Senja Jatinangor",
+            address: "Jl. GKPN No. 8",
+            street: "Jl. GKPN",
+            lat: -6.931,
+            lng: 107.773,
+            capacity: 40,
+            hours: "09:00 - 23:00",
+            image: "https://placehold.co/600x400/8b5cf6/white?text=Kopi+Senja",
+            rating: 4.6,
+            tags: ["Kopi", "Nugas Friendly", "WiFi"],
+            health: { score: 1, label: "Santai" },
+            menu: [
+                { name: "Kopi Susu Gula Aren", price: 22000 },
+                { name: "Americano", price: 18000 },
+                { name: "Kentang Goreng", price: 15000 },
+                { name: "Indomie Carbonara", price: 20000 },
+            ],
+            reviews: [
+                { user: "Sarah A.", rating: 5, comment: "Tempatnya cozy banget buat nugas. Kopinya juga enak!" },
+                { user: "Rian F.", rating: 4, comment: "WiFi kenceng, colokan banyak. Penyelamat di kala deadline." },
+            ]
+        },
+        {
+            id: 4,
+            name: "Sate Padang Mak Syukur",
+            address: "Jl. Raya Jatinangor (Depan Jatos)",
+            street: "Jl. Raya Jatinangor",
+            lat: -6.9295,
+            lng: 107.770,
+            capacity: 15,
+            hours: "17:00 - 23:00",
+            image: "https://placehold.co/600x400/ef4444/white?text=Mak+Syukur",
+            rating: 4.8,
+            tags: ["Sate Padang", "Kaki Lima", "Malam"],
+            health: { score: 2, label: "Berprotein" },
+            menu: [
+                { name: "Sate Padang (10 Tusuk)", price: 25000 },
+                { name: "Kerupuk Kulit", price: 3000 },
+                { name: "Teh Botol", price: 5000 },
+            ],
+            reviews: [
+                 { user: "Kevin H.", rating: 5, comment: "Bumbu satenya medok banget, dagingnya empuk. The best sate padang!" },
+            ]
+        },
+        {
+            id: 5,
+            name: "Salad Stop Jatinangor",
+            address: "Jl. Sayang No. 45",
+            street: "Jl. Sayang",
+            lat: -6.930,
+            lng: 107.7725,
+            capacity: 10,
+            hours: "10:00 - 20:00",
+            image: "https://placehold.co/600x400/22c55e/white?text=Salad+Stop",
+            rating: 4.9,
+            tags: ["Sehat", "Salad", "Vegan"],
+            health: { score: 3, label: "Sangat Sehat" },
+            menu: [
+                { name: "Caesar Salad with Chicken", price: 35000 },
+                { name: "Tuna-Mayo Wrap", price: 30000 },
+                { name: "Fresh Juice (Orange)", price: 15000 },
+            ],
+            reviews: [
+                 { user: "Fitri W.", rating: 5, comment: "Akhirnya ada pilihan sehat di Jatinangor! Sayurannya fresh banget." },
+            ]
+        },
+        {
+            id: 6,
+            name: "Seblak Teh Euis",
+            address: "Gg. Bunga, Ciseke",
+            street: "Ciseke",
+            lat: -6.936,
+            lng: 107.768,
+            capacity: 12,
+            hours: "11:00 - 21:00",
+            image: "https://placehold.co/600x400/f43f5e/white?text=Seblak+Teh+Euis",
+            rating: 4.6,
+            tags: ["Seblak", "Pedas", "Viral"],
+            health: { score: 1, label: "Nikmat" },
+            menu: [
+                { name: "Seblak Original", price: 10000 },
+                { name: "Seblak Komplit (Ceker, Baso, Sosis)", price: 18000 },
+                { name: "Es Teh Manis Jumbo", price: 5000 },
+            ],
+            reviews: [
+                 { user: "Dinda M.", rating: 5, comment: "Seblak terenak dan ter-medok se-Nangor. Level 5 auto nangis!" },
+            ]
+        },
+        {
+            id: 7,
+            name: "Warteg Bahari",
+            address: "Jl. Raya Jatinangor No. 200",
+            street: "Jl. Raya Jatinangor",
+            lat: -6.934,
+            lng: 107.7705,
+            capacity: 30,
+            hours: "24 Jam",
+            image: "https://placehold.co/600x400/06b6d4/white?text=Warteg+Bahari",
+            rating: 4.4,
+            tags: ["Warteg", "24 Jam", "Murah Meriah"],
+            health: { score: 2, label: "Seimbang" },
+            menu: [
+                { name: "Nasi + 3 Lauk", price: 15000 },
+                { name: "Nasi Rames", price: 12000 },
+                { name: "Gorengan", price: 1000 },
+            ],
+            reviews: [
+                 { user: "Rahmat H.", rating: 4, comment: "Penyelamat lapar tengah malam. Banyak pilihan lauknya." },
+            ]
+        }
+    ];
+
+    // --- APP STATE ---
+    let map;
+    let markers = [];
+    let currentRating = 0;
+    let activeRestoId = null;
+
+    // --- DOM ELEMENTS ---
+    const splashScreen = document.getElementById('splash-screen');
+    const mainPage = document.getElementById('main-page');
+    const restoDetailPage = document.getElementById('resto-detail-page');
+    const searchBar = document.getElementById('search-bar');
+    const restoListContainer = document.getElementById('resto-list');
+    const backButton = document.getElementById('back-button');
+    const dragHandle = document.getElementById('drag-handle');
+    const listContainer = document.getElementById('list-container');
+    
+    // --- PAGE NAVIGATION ---
+    const showPage = (pageId) => {
+        [splashScreen, mainPage, restoDetailPage].forEach(page => {
+            page.classList.add('hidden');
+            page.classList.remove('flex');
+        });
+        const pageToShow = document.getElementById(pageId);
+        pageToShow.classList.remove('hidden');
+        pageToShow.classList.add('flex');
+        pageToShow.classList.add('fade-in');
+    };
+
+    // --- MAP LOGIC ---
+    const initMap = () => {
+        map = L.map('map').setView([-6.932, 107.770], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+    };
+
+    const updateMarkers = (data) => {
+        markers.forEach(marker => marker.remove());
+        markers = [];
+        data.forEach(resto => {
+            const marker = L.marker([resto.lat, resto.lng]).addTo(map);
+            marker.bindPopup(`<b>${resto.name}</b><br><button class="view-detail-btn mt-1 text-green-500 font-semibold" data-id="${resto.id}">Lihat Detail</button>`);
+            markers.push(marker);
+        });
+    };
+
+    // --- UI RENDERING ---
+    const renderRestoList = (data) => {
+        restoListContainer.innerHTML = '';
+        if (data.length === 0) {
+            restoListContainer.innerHTML = `<p class="text-center text-gray-500">Tidak ada hasil ditemukan.</p>`;
+            return;
+        }
+        data.forEach(resto => {
+            const tagsHtml = resto.tags.map(tag => `<span class="bg-green-100 text-green-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded-full">${tag}</span>`).join('');
+            
+            let healthIndicatorColor = 'bg-gray-200 text-gray-800';
+            if (resto.health.score === 3) healthIndicatorColor = 'bg-green-200 text-green-800';
+            if (resto.health.score === 2) healthIndicatorColor = 'bg-yellow-200 text-yellow-800';
+            if (resto.health.score === 1) healthIndicatorColor = 'bg-red-200 text-red-800';
+
+            const card = `
+                <div class="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer view-detail-btn" data-id="${resto.id}">
+                    <img src="${resto.image}" class="w-16 h-16 rounded-md object-cover">
+                    <div class="flex-1">
+                        <h3 class="font-semibold text-gray-800">${resto.name}</h3>
+                        <p class="text-sm text-gray-500">${resto.street}</p>
+                        <div class="flex items-center text-xs mt-1.5 flex-wrap">
+                            <span class="text-yellow-500 font-bold mr-2">★ ${resto.rating}</span>
+                            <span class="px-2 py-0.5 text-xs font-semibold rounded-full ${healthIndicatorColor}">
+                                ${resto.health.label}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            restoListContainer.innerHTML += card;
+        });
+    };
+    
+    const renderRestoDetail = (restoId) => {
+        activeRestoId = restoId;
+        const resto = mockData.find(r => r.id == restoId);
+        if (!resto) return;
+
+        document.getElementById('resto-detail-image').src = resto.image;
+        document.getElementById('resto-detail-name').innerText = resto.name;
+        document.getElementById('resto-detail-address').innerText = resto.address;
+        document.getElementById('resto-detail-rating').innerText = resto.rating;
+        document.getElementById('resto-detail-hours').innerText = resto.hours;
+        document.getElementById('resto-detail-capacity').innerText = `Kapasitas: ~${resto.capacity}`;
+        
+        // Render Health Indicator
+        const healthContainer = document.getElementById('resto-detail-health');
+        let healthIndicatorColor = 'bg-gray-200 text-gray-800';
+        let healthIconPath = `<path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />`; // check
+        if (resto.health.score === 3) {
+            healthIndicatorColor = 'bg-green-100 text-green-800';
+            healthIconPath = `<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />`; // check circle
+        }
+        if (resto.health.score === 2) {
+            healthIndicatorColor = 'bg-yellow-100 text-yellow-800';
+            healthIconPath = `<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />`; // warning
+        }
+        if (resto.health.score === 1) {
+            healthIndicatorColor = 'bg-red-100 text-red-800';
+             healthIconPath = `<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />`; // warning
+        }
+
+        healthContainer.innerHTML = `
+            <div class="flex items-center px-2.5 py-1 rounded-full text-sm font-semibold ${healthIndicatorColor}">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 mr-1.5">
+                    ${healthIconPath}
+                </svg>
+                ${resto.health.label}
+            </div>
+        `;
+
+        // Render Menu
+        const menuContent = document.getElementById('menu-content');
+        menuContent.innerHTML = '';
+        resto.menu.forEach(item => {
+            const menuItem = `
+                <div class="flex justify-between items-center bg-white p-3 rounded-lg shadow-sm">
+                    <p class="font-medium text-gray-800">${item.name}</p>
+                    <p class="text-gray-600 font-semibold">Rp ${item.price.toLocaleString('id-ID')}</p>
+                </div>
+            `;
+            menuContent.innerHTML += menuItem;
+        });
+
+        // Render Reviews
+        renderReviews(resto.reviews);
+        resetReviewForm();
+        showPage('resto-detail-page');
+    };
+
+    const renderReviews = (reviews) => {
+        const reviewList = document.getElementById('review-list');
+        reviewList.innerHTML = '';
+        if (reviews.length === 0) {
+            reviewList.innerHTML = `<p class="text-center text-gray-500">Belum ada ulasan.</p>`;
+            return;
+        }
+        reviews.forEach(review => {
+             const starsHtml = Array.from({ length: 5 }, (_, i) => `
+                <svg class="w-4 h-4 ${i < review.rating ? 'text-yellow-400' : 'text-gray-300'}" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
+            `).join('');
+
+            const reviewItem = `
+                <div class="bg-white p-4 rounded-lg shadow-sm">
+                    <div class="flex justify-between items-center">
+                        <p class="font-semibold">${review.user}</p>
+                        <div class="flex">${starsHtml}</div>
+                    </div>
+                    <p class="text-gray-600 mt-2">${review.comment}</p>
+                </div>
+            `;
+            reviewList.innerHTML += reviewItem;
+        });
+    }
+
+    // --- EVENT LISTENERS & LOGIC ---
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            splashScreen.style.opacity = '0';
+            setTimeout(() => {
+                showPage('main-page');
+                initMap();
+                renderRestoList(mockData);
+                updateMarkers(mockData);
+            }, 500);
+        }, 2000);
+    });
+
+    searchBar.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        const filteredData = mockData.filter(resto => 
+            resto.name.toLowerCase().includes(searchTerm) || 
+            resto.street.toLowerCase().includes(searchTerm)
+        );
+        renderRestoList(filteredData);
+        updateMarkers(filteredData);
+    });
+
+    document.body.addEventListener('click', (e) => {
+        if (e.target.closest('.view-detail-btn')) {
+            const restoId = e.target.closest('.view-detail-btn').dataset.id;
+            renderRestoDetail(restoId);
+        }
+    });
+
+    backButton.addEventListener('click', () => {
+        showPage('main-page');
+    });
+
+    // Detail page tabs
+    const menuTab = document.getElementById('menu-tab');
+    const reviewTab = document.getElementById('review-tab');
+    const menuContent = document.getElementById('menu-content');
+    const reviewContent = document.getElementById('review-content');
+
+    menuTab.addEventListener('click', () => {
+        menuTab.classList.add('text-green-500', 'border-green-500');
+        reviewTab.classList.remove('text-green-500', 'border-green-500');
+        reviewTab.classList.add('text-gray-500');
+        menuContent.classList.remove('hidden');
+        reviewContent.classList.add('hidden');
+    });
+
+    reviewTab.addEventListener('click', () => {
+        reviewTab.classList.add('text-green-500', 'border-green-500');
+        menuTab.classList.remove('text-green-500', 'border-green-500');
+        menuTab.classList.add('text-gray-500');
+        reviewContent.classList.remove('hidden');
+        menuContent.classList.add('hidden');
+    });
+
+    // Review Stars Logic
+    const reviewStarsContainer = document.getElementById('review-stars');
+    const stars = reviewStarsContainer.querySelectorAll('.star');
+
+    const setRating = (rating) => {
+        currentRating = rating;
+        stars.forEach(star => {
+            if (star.dataset.value <= rating) {
+                star.classList.remove('text-gray-300');
+                star.classList.add('text-yellow-400');
+            } else {
+                star.classList.remove('text-yellow-400');
+                star.classList.add('text-gray-300');
+            }
+        });
+    };
+
+    reviewStarsContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('star')) {
+            setRating(e.target.dataset.value);
+        }
+    });
+
+    const resetReviewForm = () => {
+        setRating(0);
+        document.getElementById('review-text').value = '';
+    }
+
+    // Submit Review Logic
+    document.getElementById('submit-review').addEventListener('click', () => {
+        const comment = document.getElementById('review-text').value;
+        if (currentRating === 0) {
+            alert('Pilih rating bintang dulu ya!');
+            return;
+        }
+        if (!comment) {
+            alert('Jangan lupa isi ulasannya!');
+            return;
+        }
+
+        const newReview = {
+            user: "Kamu", // In a real app, this would be the logged-in user
+            rating: parseInt(currentRating),
+            comment: comment
+        };
+        
+        const resto = mockData.find(r => r.id === activeRestoId);
+        if (resto) {
+            resto.reviews.unshift(newReview); // Add to the beginning of the array
+            renderReviews(resto.reviews);
+            resetReviewForm();
+        }
+    });
+
+    // Draggable list container
+    let isDragging = false;
+    let startY, startHeight;
+
+    const startDrag = (e) => {
+        isDragging = true;
+        startY = e.pageY || e.touches[0].pageY;
+        startHeight = listContainer.offsetHeight;
+        listContainer.style.transition = 'none';
+    };
+
+    const doDrag = (e) => {
+        if (!isDragging) return;
+        const currentY = e.pageY || e.touches[0].pageY;
+        const diff = startY - currentY;
+        const newHeight = startHeight + diff;
+        const maxHeight = window.innerHeight * 0.8;
+        const minHeight = window.innerHeight * 0.2;
+
+        if (newHeight > minHeight && newHeight < maxHeight) {
+             listContainer.style.height = `${newHeight}px`;
+        }
+    };
+
+    const endDrag = () => {
+        isDragging = false;
+        listContainer.style.transition = 'transform 0.3s, height 0.3s';
+        const currentHeight = listContainer.offsetHeight;
+        const midPoint = window.innerHeight * 0.4;
+        
+        if (currentHeight > midPoint) {
+            listContainer.style.height = '80%';
+        } else {
+            listContainer.style.height = '40%';
+        }
+    };
+
+    dragHandle.addEventListener('mousedown', startDrag);
+    window.addEventListener('mousemove', doDrag);
+    window.addEventListener('mouseup', endDrag);
+    
+    dragHandle.addEventListener('touchstart', startDrag);
+    window.addEventListener('touchmove', doDrag);
+    window.addEventListener('touchend', endDrag);
+
+</script>
+</body>
+</html>
+
